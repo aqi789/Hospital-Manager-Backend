@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const multer = require("multer");
+const bodyParser=require("body-parser")
 const port = 3001;
 const userModel = require("./models/user");
 const departmentModel = require("./models/department");
@@ -13,6 +14,9 @@ const employeeModel = require("./models/employee");
 const departmentHeadModel = require("./models/departmentHead");
 const fs = require("fs");
 const headModel = require("./models/departmentHead");
+const { Types: { ObjectId } } = require('mongoose');
+const { error } = require("console");
+const id = new ObjectId(); // Correct usage with Mongoose.Types.ObjectId
 
 const app = express();
 app.use(express.json());
@@ -25,6 +29,7 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.static("public"));
+app.use(bodyParser.json());
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -165,7 +170,6 @@ app.put("/updateDept/:id", async (req, res) => {
     department.deptYear = departmentYear;
     department.deptDesc = departmentDescription;
     department.image = departmentImage;
-
     // Save the updated department
     await department.save();
 
@@ -178,30 +182,78 @@ app.put("/updateDept/:id", async (req, res) => {
   }
 });
 
-app.get("/getDeptById/:id", (req, res) => {
-  const { id } = req.params;
-  departmentModel
-    .findById({ _id: id })
-    .then((department) => {
-      res.json(department);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
+
+// Route to get a department by ID
+app.get("/getDeptById/:id", async (req, res) => {
+    const { id } = req.params;
+
+    // Validate if the provided ID is a valid ObjectId
+    if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ error: "Invalid department ID" });
+    }
+
+    try {
+        const department = await departmentModel.findById(id);
+        if (!department) {
+            return res.status(404).json({ error: "Department not found" });
+        }
+        res.json(department);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 });
 
+// Update the '/deptDelete/:id' route
 app.delete("/deptDelete/:id", (req, res) => {
   const { id } = req.params;
   departmentModel
-    .findByIdAndDelete({ _id: id })
+    .findByIdAndDelete(id) // Remove curly braces around id
     .then((deletedDept) => {
       console.log(deletedDept);
       res.json(deletedDept);
     })
     .catch((err) => {
       console.error(err);
+      res.status(500).json({ error: "Internal server error" });
     });
 });
+
+app.get("/getDeptById/:id", (req, res) => {
+  const { id } = req.params;
+  departmentModel
+    .findById(id) // Remove curly braces around id
+    .then((department) => {
+      if (!department) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+      res.json(department);
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(500).json({ error: "Internal server error" });
+    });
+});
+
+app.get("/getDeptByName/:name", (req, res) => {
+  const { name } = req.params;
+  departmentModel
+    .findOne({ deptName: name }) // Query by department name
+    .then((department) => {
+      if (!department) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+      res.json(department);
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(500).json({ error: "Internal server error" });
+    });
+});
+
+
+
+
 
 ///employee
 
@@ -294,6 +346,7 @@ app.put("/updateEmployee/:id", async (req, res) => {
 });
 
 
+
 //deptHead
 
 app.post("/headPost", upload.single("headImage"), async (req, res) => {
@@ -368,6 +421,20 @@ app.put("/updateDeptHead/:id", async (req, res) => {
     res.status(500).send("An error occurred while updating department head.");
   }
 });
+
+app.get("/getHeadByName/:name", (req,res)=>{
+  const {name}=req.params;
+  departmentHeadModel.findOne({name:name})
+  .then((head)=>{
+    if(!head){
+      return res.status(404).json({error:"department head not found"});
+    }
+    res.json(head);
+  }).catch((err)=>{
+    console.log(err);
+    res.status(500).json({err:'Internal server error'})
+  })
+})
 
 app.get("/getDepartments", async (req, res) => {
   try {
